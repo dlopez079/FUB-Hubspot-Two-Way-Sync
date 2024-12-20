@@ -4,8 +4,9 @@ from dotenv import load_dotenv
 
 # Load API keys from .env
 load_dotenv()
-HUBSPOT_API_KEY = os.getenv("HUBSPOT_API_KEY")
-FUB_API_KEY = os.getenv("FUB_API_KEY")
+HUBSPOT_API_KEY = os.getenv("HUBSPOT_API_KEY") # Keys tested from env are good. 
+
+FUB_API_KEY = os.getenv("FUB_API_KEY") # Keys tested from env are good. 
 
 # HubSpot API endpoints
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
@@ -93,7 +94,7 @@ def update_fub_contact(hubspot_contact, fub_contact):
     }
     contact_id = fub_contact["id"]
     print(f"Updating FUB contact ID {contact_id} with data: {data}") # TEST
-    
+
     response = requests.put(f"{FUB_CONTACTS_URL}/{contact_id}", headers=headers, json=data)
 
     if response.status_code in [200, 204]:
