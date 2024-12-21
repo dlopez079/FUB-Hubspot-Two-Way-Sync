@@ -2,102 +2,78 @@ import os
 import requests
 from dotenv import load_dotenv
 
-# Load API keys from .env
+# Load environment variables
 load_dotenv()
-HUBSPOT_API_KEY = os.getenv("HUBSPOT_API_KEY") # Keys tested from env are good. 
 
-FUB_API_KEY = os.getenv("FUB_API_KEY") # Keys tested from env are good. 
+# API Keys
+HUBSPOT_API_KEY = os.getenv("HUBSPOT_API_KEY")
+FUB_API_KEY = os.getenv("FUB_API_KEY")
 
-# HubSpot API endpoints
-HUBSPOT_BASE_URL = "https://api.hubapi.com"
-HUBSPOT_CONTACTS_URL = f"{HUBSPOT_BASE_URL}/crm/v3/objects/contacts"
+# HubSpot API Endpoint
+HUBSPOT_CONTACTS_URL = "https://api.hubapi.com/crm/v3/objects/contacts"
 
-# Follow Up Boss API endpoints
-FUB_BASE_URL = "https://api.followupboss.com/v1"
-FUB_CONTACTS_URL = f"{FUB_BASE_URL}/people"
+# Follow Up Boss API Endpoint
+FUB_CONTACTS_URL = "https://api.followupboss.com/v1/people"
 
-# FETCHING HUBSPOT CONTACTS - Use the HubSpot API to fetch contacts.
+# Fetch Contacts from HubSpot
 def fetch_hubspot_contacts():
     headers = {"Authorization": f"Bearer {HUBSPOT_API_KEY}"}
     params = {"limit": 100}
     response = requests.get(HUBSPOT_CONTACTS_URL, headers=headers, params=params)
 
     if response.status_code == 200:
-        print("Successfully fetched contacts from hubspot.") # Test
+        print("Successfully fetched contacts from HubSpot.")
         return response.json().get("results", [])
     else:
         print(f"Error fetching contacts from HubSpot: {response.text}")
         return []
 
-# FETCHING FUB CONTACTS - Fetch existing contacts from Follow Up Boss.
+# Fetch Contacts from Follow Up Boss
 def fetch_fub_contacts():
-    headers = {"Authorization": f"Bearer {FUB_API_KEY}"}
+    headers = {"authorization": "Basic ZmthXzB2NkJFS2tEbHVURllmVGIwRTZZdDNiU1BSNURrVjJJcms6"}
     response = requests.get(FUB_CONTACTS_URL, headers=headers)
 
     if response.status_code == 200:
-        print("Successfully fetched contacts from FUB.") # Test
+        print("Successfully fetched contacts from Follow Up Boss.")
         return response.json().get("people", [])
     else:
         print(f"Error fetching contacts from Follow Up Boss: {response.text}")
         return []
 
-# SYNCING - Compare and sync contacts between platforms.
-def sync_contacts():
-    hubspot_contacts = fetch_hubspot_contacts()
-    fub_contacts = fetch_fub_contacts()
+# Sync Contacts to Follow Up Boss (Review Sync Function)
+def sync_to_fub(hubspot_contacts, fub_contacts):
+    fub_contacts_dict = {contact["emails"][0]["value"]: contact for contact in fub_contacts if "emails" in contact}
 
-    # Create a dictionary of Follow Up Boss contacts for quick lookup
-    fub_contacts_dict = {contact['emails'][0]['value']: contact for contact in fub_contacts if contact.get('emails')}
+    headers = {"Authorization": f"Basic {FUB_API_KEY}", "Content-Type": "application/json"}
 
     for contact in hubspot_contacts:
         email = contact.get("properties", {}).get("email")
         if not email:
-            continue
+            continue  # Skip if no email exists
+
+        data = {
+            "firstName": contact.get("properties", {}).get("firstname"),
+            "lastName": contact.get("properties", {}).get("lastname"),
+            "emails": [{"value": email}],
+            "phones": [{"value": contact.get("properties", {}).get("phone")}],
+        }
 
         if email in fub_contacts_dict:
-            # Update existing contact in Follow Up Boss
-            update_fub_contact(contact, fub_contacts_dict[email])
+            # Update existing contact in FUB
+            fub_contact_id = fub_contacts_dict[email]["id"]
+            url = f"{FUB_CONTACTS_URL}/{fub_contact_id}"
+            response = requests.put(url, headers=headers, json=data)
+            print(f"Updated contact {email} in FUB: {response.status_code}")
         else:
-            # Create new contact in Follow Up Boss
-            create_fub_contact(contact)
+            # Create new contact in FUB
+            response = requests.post(FUB_CONTACTS_URL, headers=headers, json=data)
+            print(f"Created contact {email} in FUB: {response.status_code}")
 
-# CREATE
-def create_fub_contact(contact):
-    headers = {
-        "Authorization": f"Bearer {FUB_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "firstName": contact.get("properties", {}).get("firstname"),
-        "lastName": contact.get("properties", {}).get("lastname"),
-        "emails": [{"value": contact.get("properties", {}).get("email")}],
-        "phones": [{"value": contact.get("properties", {}).get("phone")}],
-    }
-    print(f"Creating contact in FUB: {data}") # Test
-    response = requests.post(FUB_CONTACTS_URL, headers=headers, json=data)
+# Main Function
+def main():
+    hubspot_contacts = fetch_hubspot_contacts()
+    fub_contacts = fetch_fub_contacts()
+    sync_to_fub(hubspot_contacts, fub_contacts)
 
-    if response.status_code in [200, 201]:
-        print(f"Created contact: {contact.get('properties', {}).get('email')}")
-    else:
-        print(f"Error creating contact in Follow Up Boss: {response.text}")
-
-# UPDATE 
-def update_fub_contact(hubspot_contact, fub_contact):
-    headers = {
-        "Authorization": f"Bearer {FUB_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "firstName": hubspot_contact.get("properties", {}).get("firstname"),
-        "lastName": hubspot_contact.get("properties", {}).get("lastname"),
-        "phones": [{"value": hubspot_contact.get("properties", {}).get("phone")}],
-    }
-    contact_id = fub_contact["id"]
-    print(f"Updating FUB contact ID {contact_id} with data: {data}") # TEST
-
-    response = requests.put(f"{FUB_CONTACTS_URL}/{contact_id}", headers=headers, json=data)
-
-    if response.status_code in [200, 204]:
-        print(f"Updated contact: {hubspot_contact.get('properties', {}).get('email')}")
-    else:
-        print(f"Error updating contact in Follow Up Boss: {response.text}")
+if __name__ == "__main__":
+    main()
