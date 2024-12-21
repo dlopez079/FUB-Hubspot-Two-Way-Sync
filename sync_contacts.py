@@ -18,7 +18,10 @@ FUB_CONTACTS_URL = "https://api.followupboss.com/v1/people"
 # Fetch Contacts from HubSpot
 def fetch_hubspot_contacts():
     headers = {"Authorization": f"Bearer {HUBSPOT_API_KEY}"}
-    params = {"limit": 100}
+    params = {
+        "limit": 100,  # Fetch up to 100 contacts per request
+        "properties": "email,firstname,lastname,phone",  # Include phone in the response
+    }
     response = requests.get(HUBSPOT_CONTACTS_URL, headers=headers, params=params)
 
     if response.status_code == 200:
@@ -42,11 +45,13 @@ def fetch_fub_contacts():
 
 # Sync Contacts to Follow Up Boss (Review Sync Function)
 def sync_to_fub(hubspot_contacts, fub_contacts):
+    # Map FUB contacts by email for quick lookup
     fub_contacts_dict = {contact["emails"][0]["value"]: contact for contact in fub_contacts if "emails" in contact}
 
-    headers = {"Authorization": f"Basic {FUB_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Basic ZmthXzB2NkJFS2tEbHVURllmVGIwRTZZdDNiU1BSNURrVjJJcms6", "Content-Type": "application/json"}
 
     for contact in hubspot_contacts:
+        # Extract relevant data from HubSpot contact
         email = contact.get("properties", {}).get("email")
         if not email:
             continue  # Skip if no email exists
@@ -59,15 +64,19 @@ def sync_to_fub(hubspot_contacts, fub_contacts):
         }
 
         if email in fub_contacts_dict:
-            # Update existing contact in FUB
+            # Get FUB contact ID for the matched contact
             fub_contact_id = fub_contacts_dict[email]["id"]
+            print(fub_contact_id)
             url = f"{FUB_CONTACTS_URL}/{fub_contact_id}"
+            print(f"Updating contact: {email} | Payload: {data}/n")
             response = requests.put(url, headers=headers, json=data)
-            print(f"Updated contact {email} in FUB: {response.status_code}")
+            print(f"Response for updating {email}: {response.status_code} | {response.text}/n")
         else:
             # Create new contact in FUB
+            print(f"Creating contact: {email} | Payload: {data}/n")
             response = requests.post(FUB_CONTACTS_URL, headers=headers, json=data)
-            print(f"Created contact {email} in FUB: {response.status_code}")
+            print(f"Response for creating {email}: {response.status_code} | {response.text}/n")
+
 
 # Main Function
 def main():
